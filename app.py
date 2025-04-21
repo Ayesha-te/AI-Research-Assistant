@@ -9,7 +9,10 @@ from langchain.agents import initialize_agent, Tool
 from langchain.agents.agent_types import AgentType
 from langchain.tools import SerpAPIWrapper
 from langchain.memory import ConversationBufferMemory
+import subprocess
 
+# Upgrade pip
+subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "pip"])
 # Load API keys from Streamlit secrets
 openai_api_key = st.secrets["openai"]["apikey"]
 serpapi_api_key = st.secrets["serpapi"]["apikey"]
