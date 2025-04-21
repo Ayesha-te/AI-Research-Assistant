@@ -1,41 +1,64 @@
+# app.py
+
 import os
 import sqlite3
+from datetime import datetime
 import streamlit as st
-
-from langchain.agents import initialize_agent, load_tools, AgentType
 from langchain.llms import OpenAI
+from langchain.agents import initialize_agent, Tool
+from langchain.agents.agent_types import AgentType
+from langchain.tools import SerpAPIWrapper
 from langchain.memory import ConversationBufferMemory
 
-# --- Configuration: API Keys from Streamlit Secrets ---
-os.environ["OPENAI_API_KEY"] = st.secrets["openai"]["apikey"]
-os.environ["SERPAPI_API_KEY"] = st.secrets["serpapi"]["apikey"]
+# Load API keys from Streamlit secrets
+openai_api_key = st.secrets["openai"]["apikey"]
+serpapi_api_key = st.secrets["serpapi"]["apikey"]
 
-# --- Initialize SQLite Database ---
-def init_db():
-    conn = sqlite3.connect("qa_log.db")
-    c = conn.cursor()
-    c.execute('''
-        CREATE TABLE IF NOT EXISTS qa_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            question TEXT,
-            answer TEXT
-        )
-    ''')
+# Set environment variables for APIs
+os.environ["OPENAI_API_KEY"] = openai_api_key
+os.environ["SERPAPI_API_KEY"] = serpapi_api_key
+
+# SQLite setup
+conn = sqlite3.connect('qa.db')
+c = conn.cursor()
+c.execute('''
+    CREATE TABLE IF NOT EXISTS qa_log (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        question TEXT,
+        answer TEXT,
+        timestamp TEXT
+    )
+''')
+conn.commit()
+
+# Save to database function
+def save_to_db(question, answer):
+    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    c.execute("INSERT INTO qa_log (question, answer, timestamp) VALUES (?, ?, ?)",
+              (question, answer, timestamp))
     conn.commit()
-    conn.close()
 
-def save_qa(question, answer):
-    conn = sqlite3.connect("qa_log.db")
-    c = conn.cursor()
-    c.execute("INSERT INTO qa_log (question, answer) VALUES (?, ?)", (question, answer))
-    conn.commit()
-    conn.close()
+# App UI
+st.title("🧠 AI Research Assistant with Memory")
+user_query = st.text_input("Ask me anything...")
 
-# --- Initialize LLM, Tools, Agent ---
+# Tools (Using SerpAPI for real-time Google Search)
+search = SerpAPIWrapper()
+tools = [
+    Tool(
+        name="Google Search",
+        func=search.run,
+        description="Useful for answering questions with real-time Google Search."
+    )
+]
+
+# Memory setup
+memory = ConversationBufferMemory(memory_key="chat_history")
+
+# LLM setup
 llm = OpenAI(temperature=0.7)
-memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
-tools = load_tools(["serpapi"], llm=llm)
 
+# Agent setup
 agent = initialize_agent(
     tools=tools,
     llm=llm,
@@ -44,39 +67,19 @@ agent = initialize_agent(
     memory=memory
 )
 
-# --- Streamlit UI ---
-st.set_page_config(page_title="AI Research Assistant", page_icon="🧠")
-st.title("🧠 AI Research Assistant")
-st.write("Ask a research question and I'll search the web to summarize the answer.")
+# Process query
+if user_query:
+    response = agent.run(user_query)
+    st.write("🧠", response)
+    save_to_db(user_query, response)
 
-# Initialize DB
-init_db()
-
-# Get user input
-query = st.text_input("Enter your research question")
-
-# If query submitted
-if query:
-    with st.spinner("Searching and summarizing..."):
-        response = agent.run(query)
-        save_qa(query, response)
-        
-        # Display Q&A
-        st.markdown(f"**🧑 You:** {query}")
-        st.markdown(f"**🤖 AI:** {response}")
-
-# Show history
-with st.expander("📜 Previous Questions & Answers"):
-    conn = sqlite3.connect("qa_log.db")
-    c = conn.cursor()
-    c.execute("SELECT question, answer FROM qa_log ORDER BY id DESC LIMIT 10")
+# Show Q&A history
+with st.expander("📜 Q&A History"):
+    c.execute("SELECT * FROM qa_log ORDER BY id DESC")
     rows = c.fetchall()
-    for question, answer in rows:
-        st.markdown(f"**You:** {question}")
-        st.markdown(f"**AI:** {answer}")
-    conn.close()
-
-# Show memory (debug)
-with st.expander("🧠 Memory Log"):
-    st.info(memory.buffer)
+    for row in rows:
+        st.write(f"🕒 {row[3]}")
+        st.markdown(f"**Q:** {row[1]}")
+        st.markdown(f"**A:** {row[2]}")
+        st.markdown("---")
 
