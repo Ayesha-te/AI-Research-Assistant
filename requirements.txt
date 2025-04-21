@@ -1,5 +1,5 @@
-streamlit
-openai
-langchain
-serpapi
-sqlite3  
+streamlit==1.15.0
+openai==0.27.0
+langchain==0.0.204
+serpapi==2.2.0
+sqlite3 
