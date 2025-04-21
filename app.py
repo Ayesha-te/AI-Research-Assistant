@@ -82,4 +82,3 @@ with st.expander("📜 Q&A History"):
         st.markdown(f"**Q:** {row[1]}")
         st.markdown(f"**A:** {row[2]}")
         st.markdown("---")
-
