@@ -10,6 +10,11 @@ from langchain.agents.agent_types import AgentType
 from langchain.tools import SerpAPIWrapper
 from langchain.memory import ConversationBufferMemory
 import subprocess
+import subprocess
+import sys
+
+# Install langchain_community
+subprocess.run([sys.executable, "-m", "pip", "install", "langchain_community"])
 
 # Upgrade pip
 subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "pip"])
