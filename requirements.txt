@@ -1,6 +1,6 @@
 langchain
 openai
 streamlit
-sqlite3 
+
 serpapi  
 pip==21.3.1  
