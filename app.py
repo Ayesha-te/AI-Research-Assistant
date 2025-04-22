@@ -7,7 +7,8 @@ import streamlit as st
 from langchain_community.llms import OpenAI
 from langchain.agents import initialize_agent, Tool
 from langchain.agents.agent_types import AgentType
-from langchain_community.tools.serpapi.tool import SerpAPIWrapper
+from langchain_community.tools import SerpAPIWrapper
+
 from langchain.memory import ConversationBufferMemory
 
 # ✅ Load API keys from Streamlit secrets
