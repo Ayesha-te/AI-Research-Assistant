@@ -2,25 +2,27 @@ import os
 import sqlite3
 from datetime import datetime
 import streamlit as st
-from langchain.llms import OpenAI
+
+# ✅ Updated LangChain imports for v0.1+
+from langchain_community.llms import OpenAI
 from langchain.agents import initialize_agent, Tool
 from langchain.agents.agent_types import AgentType
-from langchain.tools import SerpAPIWrapper
+from langchain_community.tools.serpapi.tool import SerpAPIWrapper
 from langchain.memory import ConversationBufferMemory
 
-# Load API keys safely from Streamlit secrets
+# ✅ Load API keys from Streamlit secrets
 try:
     openai_api_key = st.secrets["openai"]["apikey"]
     serpapi_api_key = st.secrets["serpapi"]["apikey"]
 except Exception as e:
-    st.error("🚨 API keys are missing in Streamlit secrets. Please configure them properly.")
+    st.error("🚨 API keys not found in Streamlit secrets. Please add them.")
     st.stop()
 
-# Set environment variables
+# ✅ Set environment variables for APIs
 os.environ["OPENAI_API_KEY"] = openai_api_key
 os.environ["SERPAPI_API_KEY"] = serpapi_api_key
 
-# Initialize SQLite database and table
+# ✅ Initialize SQLite database
 def init_db():
     with sqlite3.connect('qa.db') as conn:
         c = conn.cursor()
@@ -34,7 +36,7 @@ def init_db():
         ''')
         conn.commit()
 
-# Save Q&A to database
+# ✅ Save Q&A to database
 def save_to_db(question, answer):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     with sqlite3.connect('qa.db') as conn:
@@ -43,7 +45,7 @@ def save_to_db(question, answer):
                   (question, answer, timestamp))
         conn.commit()
 
-# Load agent with memory and tools (cached for performance)
+# ✅ Create agent (with tools and memory)
 @st.cache_resource
 def create_agent():
     llm = OpenAI(temperature=0.7)
@@ -64,21 +66,21 @@ def create_agent():
         memory=memory
     )
 
-# App UI
+# ✅ Streamlit App UI
 st.title("🧠 AI Research Assistant with Memory")
 user_query = st.text_input("Ask me anything...")
 
-# Initialize DB and Agent
+# ✅ Initialize database and agent
 init_db()
 agent = create_agent()
 
-# Process and respond to user input
+# ✅ Handle user query
 if user_query:
     response = agent.run(user_query)
     st.write("🧠", response)
     save_to_db(user_query, response)
 
-# Show Q&A history
+# ✅ Show Q&A history
 with st.expander("📜 Q&A History"):
     with sqlite3.connect('qa.db') as conn:
         c = conn.cursor()
@@ -89,3 +91,4 @@ with st.expander("📜 Q&A History"):
             st.markdown(f"**Q:** {row[1]}")
             st.markdown(f"**A:** {row[2]}")
             st.markdown("---")
+
