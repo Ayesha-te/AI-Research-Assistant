@@ -1,5 +1,3 @@
-# app.py
-
 import os
 import sqlite3
 from datetime import datetime
@@ -8,7 +6,7 @@ from langchain.llms import OpenAI
 from langchain.agents import initialize_agent, Tool
 from langchain.agents.agent_types import AgentType
 from langchain.memory import ConversationBufferMemory
-from serpapi import GoogleSearch
+from serpapi import GoogleSearch  
 
 # Load API keys from Streamlit secrets
 openai_api_key = st.secrets["openai"]["apikey"]
