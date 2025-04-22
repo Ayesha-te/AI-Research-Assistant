@@ -1,5 +1,3 @@
-# app.py
-
 import os
 import sqlite3
 from datetime import datetime
@@ -9,73 +7,72 @@ from langchain.agents import initialize_agent, Tool
 from langchain.agents.agent_types import AgentType
 from langchain.tools import SerpAPIWrapper
 from langchain.memory import ConversationBufferMemory
-import subprocess
-import subprocess
-import sys
 
-# Install langchain_community
-subprocess.run([sys.executable, "-m", "pip", "install", "langchain_community"])
+# Load API keys safely from Streamlit secrets
+try:
+    openai_api_key = st.secrets["openai"]["apikey"]
+    serpapi_api_key = st.secrets["serpapi"]["apikey"]
+except Exception as e:
+    st.error("🚨 API keys are missing in Streamlit secrets. Please configure them properly.")
+    st.stop()
 
-# Upgrade pip
-subprocess.run([sys.executable, "-m", "pip", "install", "--upgrade", "pip"])
-# Load API keys from Streamlit secrets
-openai_api_key = st.secrets["openai"]["apikey"]
-serpapi_api_key = st.secrets["serpapi"]["apikey"]
-
-# Set environment variables for APIs
+# Set environment variables
 os.environ["OPENAI_API_KEY"] = openai_api_key
 os.environ["SERPAPI_API_KEY"] = serpapi_api_key
 
-# SQLite setup
-conn = sqlite3.connect('qa.db')
-c = conn.cursor()
-c.execute('''
-    CREATE TABLE IF NOT EXISTS qa_log (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        question TEXT,
-        answer TEXT,
-        timestamp TEXT
-    )
-''')
-conn.commit()
+# Initialize SQLite database and table
+def init_db():
+    with sqlite3.connect('qa.db') as conn:
+        c = conn.cursor()
+        c.execute('''
+            CREATE TABLE IF NOT EXISTS qa_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                question TEXT,
+                answer TEXT,
+                timestamp TEXT
+            )
+        ''')
+        conn.commit()
 
-# Save to database function
+# Save Q&A to database
 def save_to_db(question, answer):
     timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    c.execute("INSERT INTO qa_log (question, answer, timestamp) VALUES (?, ?, ?)",
-              (question, answer, timestamp))
-    conn.commit()
+    with sqlite3.connect('qa.db') as conn:
+        c = conn.cursor()
+        c.execute("INSERT INTO qa_log (question, answer, timestamp) VALUES (?, ?, ?)",
+                  (question, answer, timestamp))
+        conn.commit()
+
+# Load agent with memory and tools (cached for performance)
+@st.cache_resource
+def create_agent():
+    llm = OpenAI(temperature=0.7)
+    memory = ConversationBufferMemory(memory_key="chat_history")
+    search = SerpAPIWrapper()
+    tools = [
+        Tool(
+            name="Google Search",
+            func=search.run,
+            description="Useful for answering questions with real-time Google Search."
+        )
+    ]
+    return initialize_agent(
+        tools=tools,
+        llm=llm,
+        agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
+        verbose=True,
+        memory=memory
+    )
 
 # App UI
 st.title("🧠 AI Research Assistant with Memory")
 user_query = st.text_input("Ask me anything...")
 
-# Tools (Using SerpAPI for real-time Google Search)
-search = SerpAPIWrapper()
-tools = [
-    Tool(
-        name="Google Search",
-        func=search.run,
-        description="Useful for answering questions with real-time Google Search."
-    )
-]
+# Initialize DB and Agent
+init_db()
+agent = create_agent()
 
-# Memory setup
-memory = ConversationBufferMemory(memory_key="chat_history")
-
-# LLM setup
-llm = OpenAI(temperature=0.7)
-
-# Agent setup
-agent = initialize_agent(
-    tools=tools,
-    llm=llm,
-    agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-    verbose=True,
-    memory=memory
-)
-
-# Process query
+# Process and respond to user input
 if user_query:
     response = agent.run(user_query)
     st.write("🧠", response)
@@ -83,10 +80,12 @@ if user_query:
 
 # Show Q&A history
 with st.expander("📜 Q&A History"):
-    c.execute("SELECT * FROM qa_log ORDER BY id DESC")
-    rows = c.fetchall()
-    for row in rows:
-        st.write(f"🕒 {row[3]}")
-        st.markdown(f"**Q:** {row[1]}")
-        st.markdown(f"**A:** {row[2]}")
-        st.markdown("---")
+    with sqlite3.connect('qa.db') as conn:
+        c = conn.cursor()
+        c.execute("SELECT * FROM qa_log ORDER BY id DESC")
+        rows = c.fetchall()
+        for row in rows:
+            st.write(f"🕒 {row[3]}")
+            st.markdown(f"**Q:** {row[1]}")
+            st.markdown(f"**A:** {row[2]}")
+            st.markdown("---")
