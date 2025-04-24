@@ -1,54 +1,51 @@
-import os 
+### app.py
+import os
 import toml
 import sqlite3
+import streamlit as st
 from langchain.chat_models import ChatOpenAI
 from langchain.agents import initialize_agent, AgentType
 from langchain.memory import ConversationBufferMemory
+from langchain.tools.serpapi.tool import SerpAPIWrapper
 from langchain.tools import Tool
-from serpapi.google_search_results import GoogleSearchResults as GoogleSearch
 
-#os.environ['OPENAI_API_KEY'] = st.secrets["openai"]["apikey"]
-#os.environ['SERPAPI_KEY']=st.secrets["serpapi"]["apikey"]
 # Load secrets
-tokens = toml.load("secrets.toml")
-OPENAI_API_KEY = tokens["openai"]["api_key"]
-SERPAPI_KEY = tokens["serpapi"]["api_key"]
+secrets = toml.load("secrets.toml")
+os.environ["OPENAI_API_KEY"] = secrets["openai"]["api_key"]
+os.environ["SERPAPI_API_KEY"] = secrets["serpapi"]["api_key"]
+
+# Streamlit setup
+st.set_page_config(page_title="AI Research Assistant")
+st.title("🧠 AI Research Assistant")
 
 # Setup memory
-memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
-
-# Google Search tool
-def search_google(query: str) -> str:
-    search = GoogleSearch({
-        "q": query,
-        "api_key": SERPAPI_KEY
-    })
-    results = search.get_dict()
-    return results.get("organic_results", [{}])[0].get("snippet", "No result found.")
-
-google_tool = Tool(
-    name="GoogleSearch",
-    func=search_google,
-    description="Searches Google for recent information."
-)
+if "memory" not in st.session_state:
+    st.session_state.memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
 # Setup LLM
 llm = ChatOpenAI(
     temperature=0.5,
-    model_name="gpt-3.5-turbo",
-    openai_api_key=OPENAI_API_KEY
+    model_name="gpt-3.5-turbo"
 )
 
-# Setup agent
+# Google Search Tool using SerpAPI
+search = SerpAPIWrapper()
+google_tool = Tool(
+    name="Google Search",
+    func=search.run,
+    description="Useful for answering questions by searching the internet."
+)
+
+# Initialize the agent
 agent = initialize_agent(
     tools=[google_tool],
     llm=llm,
     agent=AgentType.CONVERSATIONAL_REACT_DESCRIPTION,
-    memory=memory,
+    memory=st.session_state.memory,
     verbose=True
 )
 
-# Setup database
+# Setup database connection
 conn = sqlite3.connect("conversations.db")
 cursor = conn.cursor()
 cursor.execute('''
@@ -65,12 +62,16 @@ def log_conversation(question, response):
     cursor.execute("INSERT INTO chat_log (question, response) VALUES (?, ?)", (question, response))
     conn.commit()
 
-# CLI interaction
-if __name__ == "__main__":
-    while True:
-        query = input("\nAsk a research question (or type 'exit'): ")
-        if query.lower() in ["exit", "quit"]:
-            break
-        answer = agent.run(query)
-        print("\n🤖 Answer:", answer)
-        log_conversation(query, answer)
+# UI for user interaction
+query = st.text_input("Ask a research question:")
+
+if query:
+    response = agent.run(query)
+    st.write("🤖", response)
+    log_conversation(query, response)
+
+    # Conversation history
+    with st.expander("📜 Chat History"):
+        for msg in st.session_state.memory.chat_memory.messages:
+            role = "🧑 You" if msg.type == "human" else "🤖 AI"
+            st.markdown(f"**{role}:** {msg.content}")
