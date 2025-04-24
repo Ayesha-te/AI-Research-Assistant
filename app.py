@@ -1,11 +1,10 @@
-import os
-import toml
-import sqlite3
 from langchain_community.llms import OpenAI
 from langchain.agents import initialize_agent, Tool
 from langchain.memory import ConversationBufferMemory
-from langchain.utilities import SerpAPIWrapper  # Correct import
+from langchain.utilities import SerpAPIWrapper
 import streamlit as st
+import toml
+import sqlite3
 
 # Load secrets
 secrets = toml.load("secrets.toml")
@@ -14,27 +13,26 @@ serpapi_api_key = secrets['serpapi']['api_key']
 
 # Set up OpenAI and SerpAPI
 llm = OpenAI(api_key=openai_api_key)
-search_tool = SerpAPIWrapper(api_key=serpapi_api_key)
+search_tool = SerpAPIWrapper(serpapi_api_key=serpapi_api_key)
 
-# Set up memory for context-aware responses
+# Memory for context
 memory = ConversationBufferMemory()
 
-# Initialize LangChain agent
+# LangChain agent
 tools = [
     Tool(
         name="SerpAPI Search 🔍",
-        func=search_tool.search,
-        description="Use this tool to search the web using SerpAPI."
+        func=search_tool.run,
+        description="Search the web using SerpAPI"
     )
 ]
 
 agent = initialize_agent(tools, llm, memory=memory, verbose=True)
 
-# Set up SQLite database
+# SQLite setup
 conn = sqlite3.connect('questions_responses.db')
 c = conn.cursor()
-c.execute('''CREATE TABLE IF NOT EXISTS interactions
-             (question TEXT, response TEXT)''')
+c.execute('''CREATE TABLE IF NOT EXISTS interactions (question TEXT, response TEXT)''')
 conn.commit()
 
 # Streamlit app
@@ -45,12 +43,9 @@ if st.button("Submit 🚀"):
     if user_input:
         response = agent.run(user_input)
         st.write("Response 🗣️:", response)
-
-        # Store question and response in the database
         c.execute("INSERT INTO interactions (question, response) VALUES (?, ?)", (user_input, response))
         conn.commit()
 
-# Display previous interactions
 st.subheader("Previous Interactions 📚")
 for row in c.execute("SELECT * FROM interactions"):
     st.write(f"Q: {row[0]} ❓")
