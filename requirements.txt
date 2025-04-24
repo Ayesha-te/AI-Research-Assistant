@@ -1,6 +1,6 @@
 langchain
 openai
-google-search-results
+serpapi
 streamlit
 sqlalchemy
 toml
