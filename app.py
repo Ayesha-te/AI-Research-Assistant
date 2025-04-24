@@ -4,7 +4,7 @@ import sqlite3
 from langchain import OpenAI
 from langchain.agents import initialize_agent, Tool
 from langchain.memory import ConversationBufferMemory
-from langchain_community.utilities import SerpAPIWrapper
+from langchain.utilities import SerpAPIWrapper  # Use the correct import
 import streamlit as st
 
 # Load secrets
