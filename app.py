@@ -1,4 +1,3 @@
-### app.py
 import os
 import toml
 import sqlite3
@@ -6,8 +5,8 @@ import streamlit as st
 from langchain.chat_models import ChatOpenAI
 from langchain.agents import initialize_agent, AgentType
 from langchain.memory import ConversationBufferMemory
-from langchain.tools.serpapi.tool import SerpAPIWrapper
 from langchain.tools import Tool
+from serpapi import GoogleSearchResults
 
 # Load secrets
 secrets = toml.load("secrets.toml")
@@ -29,10 +28,14 @@ llm = ChatOpenAI(
 )
 
 # Google Search Tool using SerpAPI
-search = SerpAPIWrapper()
+def search_google(query: str) -> str:
+    search = GoogleSearchResults({"q": query, "api_key": os.getenv("SERPAPI_API_KEY")})
+    results = search.get_dict()
+    return results.get("organic_results", [{}])[0].get("snippet", "No result found.")
+
 google_tool = Tool(
     name="Google Search",
-    func=search.run,
+    func=search_google,
     description="Useful for answering questions by searching the internet."
 )
 
