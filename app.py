@@ -7,10 +7,9 @@ from langchain.agents import initialize_agent, Tool
 from langchain.memory import ConversationBufferMemory
 from langchain_community.utilities import SerpAPIWrapper
 
-# Load secrets from TOML
-secrets = toml.load("secrets.toml")
-openai_api_key = secrets['openai']['api_key']
-serpapi_api_key = secrets['serpapi']['api_key']
+
+openai_api_key = st.secrets["openai"]["apikey"]
+serpapi_api_key = st.secrets["serpapi"]["apikey"]
 
 # Set up OpenAI LLM
 llm = OpenAI(openai_api_key=openai_api_key)
