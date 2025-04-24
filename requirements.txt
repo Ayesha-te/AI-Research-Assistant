@@ -1,6 +1,6 @@
+streamlit
 langchain
+langchain-community
 openai
 serpapi
-streamlit
-sqlalchemy
 toml
