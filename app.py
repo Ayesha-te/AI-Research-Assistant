@@ -1,19 +1,20 @@
 import os
 import toml
 import sqlite3
-from langchain import OpenAI, GoogleSearchResults
+from langchain import OpenAI
 from langchain.agents import initialize_agent, Tool
 from langchain.memory import ConversationBufferMemory
+from langchain_community.utilities import SerpAPIWrapper
 import streamlit as st
 
 # Load secrets
 secrets = toml.load("secrets.toml")
-openai_api_key = secrets['openai']['apikey']
-google_api_key = secrets['google']['apikey']
+openai_api_key = secrets['openai']['api_key']
+serpapi_api_key = secrets['serpapi']['api_key']
 
-# Set up OpenAI and Google Search
+# Set up OpenAI and SerpAPI
 llm = OpenAI(api_key=openai_api_key)
-search_tool = GoogleSearchResults(api_key=google_api_key)
+search_tool = SerpAPIWrapper(api_key=serpapi_api_key)
 
 # Set up memory for context-aware responses
 memory = ConversationBufferMemory()
@@ -21,9 +22,9 @@ memory = ConversationBufferMemory()
 # Initialize LangChain agent
 tools = [
     Tool(
-        name="Google Search",
+        name="SerpAPI Search",
         func=search_tool.search,
-        description="Use this tool to search the web."
+        description="Use this tool to search the web using SerpAPI."
     )
 ]
 
