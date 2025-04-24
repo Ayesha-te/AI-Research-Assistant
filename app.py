@@ -55,3 +55,4 @@ st.subheader("Previous Interactions")
 for row in c.execute("SELECT * FROM interactions"):
     st.write(f"Q: {row[0]}")
     st.write(f"A: {row[1]}")
+
