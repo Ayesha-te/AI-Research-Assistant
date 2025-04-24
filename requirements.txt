@@ -1,5 +1,7 @@
-streamlit
-langchain
-langchain_community
 openai
+langchain>=0.1.0
+streamlit
+toml
 serpapi
+sqlite3  
+
