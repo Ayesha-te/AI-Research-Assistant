@@ -4,7 +4,7 @@ import sqlite3
 from langchain import OpenAI
 from langchain.agents import initialize_agent, Tool
 from langchain.memory import ConversationBufferMemory
-from langchain.utilities import SerpAPIWrapper  # Use the correct import
+from langchain.utilities import SerpAPIWrapper  # Correct import
 import streamlit as st
 
 # Load secrets
@@ -22,7 +22,7 @@ memory = ConversationBufferMemory()
 # Initialize LangChain agent
 tools = [
     Tool(
-        name="SerpAPI Search",
+        name="SerpAPI Search 🔍",
         func=search_tool.search,
         description="Use this tool to search the web using SerpAPI."
     )
@@ -38,21 +38,20 @@ c.execute('''CREATE TABLE IF NOT EXISTS interactions
 conn.commit()
 
 # Streamlit app
-st.title("AI Research Assistant")
+st.title("AI Research Assistant 🤖✨")
 
-user_input = st.text_input("Ask a question:")
-if st.button("Submit"):
+user_input = st.text_input("Ask a question 📝:")
+if st.button("Submit 🚀"):
     if user_input:
         response = agent.run(user_input)
-        st.write("Response:", response)
+        st.write("Response 🗣️:", response)
 
         # Store question and response in the database
         c.execute("INSERT INTO interactions (question, response) VALUES (?, ?)", (user_input, response))
         conn.commit()
 
 # Display previous interactions
-st.subheader("Previous Interactions")
+st.subheader("Previous Interactions 📚")
 for row in c.execute("SELECT * FROM interactions"):
-    st.write(f"Q: {row[0]}")
-    st.write(f"A: {row[1]}")
-
+    st.write(f"Q: {row[0]} ❓")
+    st.write(f"A: {row[1]} 💡")
