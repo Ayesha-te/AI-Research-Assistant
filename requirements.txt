@@ -1,8 +1,6 @@
+langchain
 openai
-langchain>=0.1.0
-langchain-community
+google-search-results
 streamlit
+sqlalchemy
 toml
-serpapi
-
-
