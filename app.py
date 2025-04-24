@@ -1,7 +1,7 @@
 import os
 import toml
 import sqlite3
-from langchain.chat_models import ChatOpenAI  
+from langchain_community.llms import OpenAI
 from langchain.agents import initialize_agent, Tool
 from langchain.memory import ConversationBufferMemory
 from langchain.utilities import SerpAPIWrapper  # Correct import
