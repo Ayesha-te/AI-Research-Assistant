@@ -1,67 +1,56 @@
-import streamlit as st
+import os
 import toml
 import sqlite3
-
-from langchain_community.chat_models import ChatOpenAI
-from langchain.agents import initialize_agent, AgentType
+from langchain import OpenAI, GoogleSearchResults
+from langchain.agents import initialize_agent, Tool
 from langchain.memory import ConversationBufferMemory
-from langchain_community.tools import Tool
-from langchain_community.tools.serpapi.tool import SerpAPIWrapper
+import streamlit as st
 
-# Load secrets from toml file
+# Load secrets
 secrets = toml.load("secrets.toml")
-openai_api_key = secrets["openai"]["apikey"]
-serpapi_api_key = secrets["serpapi"]["apikey"]
+openai_api_key = secrets['openai']['apikey']
+google_api_key = secrets['google']['apikey']
 
-# Set up memory
-memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+# Set up OpenAI and Google Search
+llm = OpenAI(api_key=openai_api_key)
+search_tool = GoogleSearchResults(api_key=google_api_key)
 
-# Set up LLM
-llm = ChatOpenAI(
-    temperature=0.7,
-    openai_api_key=openai_api_key
-)
+# Set up memory for context-aware responses
+memory = ConversationBufferMemory()
 
-# Set up SerpAPI tool
-search = SerpAPIWrapper(serpapi_api_key=serpapi_api_key)
+# Initialize LangChain agent
 tools = [
     Tool(
         name="Google Search",
-        func=search.run,
-        description="Useful for answering questions about current events or the world."
+        func=search_tool.search,
+        description="Use this tool to search the web."
     )
 ]
 
-# Initialize Agent
-agent = initialize_agent(
-    tools,
-    llm,
-    agent=AgentType.CONVERSATIONAL_REACT_DESCRIPTION,
-    memory=memory,
-    verbose=True
-)
+agent = initialize_agent(tools, llm, memory=memory, verbose=True)
 
-# Streamlit App UI
-st.set_page_config(page_title="AI Research Assistant")
-st.title("🧠 AI Research Assistant")
+# Set up SQLite database
+conn = sqlite3.connect('questions_responses.db')
+c = conn.cursor()
+c.execute('''CREATE TABLE IF NOT EXISTS interactions
+             (question TEXT, response TEXT)''')
+conn.commit()
 
-# User input
-query = st.text_input("Ask me anything:")
+# Streamlit app
+st.title("AI Research Assistant")
 
-if query:
-    response = agent.run(query)
-    st.write("🤖", response)
+user_input = st.text_input("Ask a question:")
+if st.button("Submit"):
+    if user_input:
+        response = agent.run(user_input)
+        st.write("Response:", response)
 
-    # Save to SQLite (optional feature)
-    conn = sqlite3.connect("chat_history.db")
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS interactions (question TEXT, answer TEXT)''')
-    c.execute("INSERT INTO interactions (question, answer) VALUES (?, ?)", (query, response))
-    conn.commit()
-    conn.close()
+        # Store question and response in the database
+        c.execute("INSERT INTO interactions (question, response) VALUES (?, ?)", (user_input, response))
+        conn.commit()
 
-    # Show past history
-    with st.expander("📜 Conversation History"):
-        for msg in memory.chat_memory.messages:
-            role = "You" if msg.type == "human" else "AI"
-            st.markdown(f"**{role}:** {msg.content}")
+# Display previous interactions
+st.subheader("Previous Interactions")
+for row in c.execute("SELECT * FROM interactions"):
+    st.write(f"Q: {row[0]}")
+    st.write(f"A: {row[1]}")
