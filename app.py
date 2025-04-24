@@ -5,7 +5,8 @@ from langchain.chat_models import ChatOpenAI
 from langchain.agents import initialize_agent, AgentType
 from langchain.memory import ConversationBufferMemory
 from langchain.tools import Tool
-from serpapi import GoogleSearch
+from serpapi.google_search_results import GoogleSearchResults as GoogleSearch
+
 #os.environ['OPENAI_API_KEY'] = st.secrets["openai"]["apikey"]
 #os.environ['SERPAPI_KEY']=st.secrets["serpapi"]["apikey"]
 # Load secrets
