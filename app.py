@@ -1,92 +1,75 @@
-import os
+import os 
+import toml
 import sqlite3
-from datetime import datetime
-import streamlit as st
-from langchain.llms import OpenAI
-from langchain.agents import initialize_agent, Tool
-from langchain.agents.agent_types import AgentType
+from langchain.chat_models import ChatOpenAI
+from langchain.agents import initialize_agent, AgentType
 from langchain.memory import ConversationBufferMemory
-from serpapi import GoogleSearch  # Correct import for SerpAPI
+from langchain.tools import Tool
+from serpapi import GoogleSearch
+#os.environ['OPENAI_API_KEY'] = st.secrets["openai"]["apikey"]
+#os.environ['SERPAPI_KEY']=st.secrets["serpapi"]["apikey"]
+# Load secrets
+tokens = toml.load("secrets.toml")
+OPENAI_API_KEY = tokens["openai"]["api_key"]
+SERPAPI_KEY = tokens["serpapi"]["api_key"]
 
-# Load API keys from Streamlit secrets
-openai_api_key = st.secrets["openai"]["apikey"]
-serpapi_api_key = st.secrets["serpapi"]["apikey"]
+# Setup memory
+memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
 
-# Set environment variables for APIs
-os.environ["OPENAI_API_KEY"] = openai_api_key
-os.environ["SERPAPI_API_KEY"] = serpapi_api_key
+# Google Search tool
+def search_google(query: str) -> str:
+    search = GoogleSearch({
+        "q": query,
+        "api_key": SERPAPI_KEY
+    })
+    results = search.get_dict()
+    return results.get("organic_results", [{}])[0].get("snippet", "No result found.")
 
-# SQLite setup
-conn = sqlite3.connect('qa.db')
-c = conn.cursor()
-c.execute('''
-    CREATE TABLE IF NOT EXISTS qa_log (
+google_tool = Tool(
+    name="GoogleSearch",
+    func=search_google,
+    description="Searches Google for recent information."
+)
+
+# Setup LLM
+llm = ChatOpenAI(
+    temperature=0.5,
+    model_name="gpt-3.5-turbo",
+    openai_api_key=OPENAI_API_KEY
+)
+
+# Setup agent
+agent = initialize_agent(
+    tools=[google_tool],
+    llm=llm,
+    agent=AgentType.CONVERSATIONAL_REACT_DESCRIPTION,
+    memory=memory,
+    verbose=True
+)
+
+# Setup database
+conn = sqlite3.connect("conversations.db")
+cursor = conn.cursor()
+cursor.execute('''
+    CREATE TABLE IF NOT EXISTS chat_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         question TEXT,
-        answer TEXT,
-        timestamp TEXT
+        response TEXT,
+        timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
     )
 ''')
 conn.commit()
 
-# Function to save questions and answers to the database
-def save_to_db(question, answer):
-    timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")  # Fixed the string syntax here
-    c.execute("INSERT INTO qa_log (question, answer, timestamp) VALUES (?, ?, ?)",
-              (question, answer, timestamp))
+def log_conversation(question, response):
+    cursor.execute("INSERT INTO chat_log (question, response) VALUES (?, ?)", (question, response))
     conn.commit()
 
-# Custom SerpAPI Tool
-def serpapi_search(query: str) -> str:
-    search = GoogleSearch({
-        "q": query,
-        "api_key": serpapi_api_key,
-    })
-    results = search.get_dict()
-    if "organic_results" in results:
-        return "\n".join([res["title"] + ": " + res["link"] for res in results["organic_results"][:3]])
-    else:
-        return "No results found."
-
-# Streamlit UI
-st.title("🧠 AI Research Assistant (Manual SerpAPI)")
-user_query = st.text_input("Ask me anything...")
-
-# Define tools for the agent
-tools = [
-    Tool(
-        name="Google Search",
-        func=serpapi_search,
-        description="Searches Google using SerpAPI for up-to-date information."
-    )
-]
-
-# Memory setup for conversation history
-memory = ConversationBufferMemory(memory_key="chat_history")
-
-# LLM setup
-llm = OpenAI(temperature=0.7)
-
-# Initialize agent
-agent = initialize_agent(
-    tools=tools,
-    llm=llm,
-    agent=AgentType.ZERO_SHOT_REACT_DESCRIPTION,
-    verbose=True,
-    memory=memory
-)
-
-# Process user query
-if user_query:
-    response = agent.run(user_query)
-    st.write("🧠", response)
-    save_to_db(user_query, response)
-
-# Display Q&A history
-with st.expander("📜 Q&A History"):
-    c.execute("SELECT * FROM qa_log ORDER BY id DESC")
-    rows = c.fetchall()
-    for row in rows:
-        st.write(f"🕒 {row[3]}")
-        st.markdown(f"**Q:** {row[1]}")
-        st.markdown(f"**A:** {row[2]}")
+# CLI interaction
+if __name__ == "__main__":
+    while True:
+        query = input("\nAsk a research question (or type 'exit'): ")
+        if query.lower() in ["exit", "quit"]:
+            break
+        answer = agent.run(query)
+        print("\n🤖 Answer:", answer)
+        log_conversation(query, answer)
