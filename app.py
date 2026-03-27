@@ -1,58 +1,78 @@
-import os
-import toml
 import sqlite3
+from urllib.parse import urlencode
+
+import requests
 import streamlit as st
-from langchain_openai import OpenAI
-from langchain.agents import initialize_agent, Tool
-from langchain.memory import ConversationBufferMemory
-from langchain_community.utilities import SerpAPIWrapper
+from openai import OpenAI
 
 
-openai_api_key = st.secrets["openai"]["apikey"]
-serpapi_api_key = st.secrets["serpapi"]["apikey"]
+def get_client() -> OpenAI:
+    return OpenAI(api_key=st.secrets["openai"]["apikey"])
 
-# Set up OpenAI LLM
-llm = OpenAI(openai_api_key=openai_api_key)
 
-# Set up SerpAPI
-search = SerpAPIWrapper(serpapi_api_key=serpapi_api_key)
-
-# Create LangChain memory
-memory = ConversationBufferMemory()
-
-# Define tools
-tools = [
-    Tool(
-        name="SerpAPI Search 🔍",
-        func=search.run,
-        description="Use this tool to search the web using SerpAPI."
+def search_web(query: str, api_key: str) -> str:
+    response = requests.get(
+        "https://serpapi.com/search.json",
+        params={
+            "q": query,
+            "api_key": api_key,
+            "engine": "google",
+            "num": 5,
+        },
+        timeout=30,
     )
-]
+    response.raise_for_status()
+    data = response.json()
 
-# Initialize agent
-agent = initialize_agent(tools, llm, memory=memory, verbose=True)
+    snippets = []
+    for item in data.get("organic_results", [])[:5]:
+        title = item.get("title", "Untitled")
+        snippet = item.get("snippet", "")
+        link = item.get("link", "")
+        snippets.append(f"Title: {title}\nSnippet: {snippet}\nLink: {link}")
 
-# SQLite setup
-conn = sqlite3.connect('questions_responses.db')
+    return "\n\n".join(snippets) if snippets else "No web results were returned."
+
+
+def generate_answer(question: str, web_context: str) -> str:
+    prompt = (
+        f"Question: {question}\n\n"
+        f"Web research:\n{web_context}\n\n"
+        "Answer the question using the research above. Be clear, practical, and mention uncertainty when needed."
+    )
+    response = get_client().chat.completions.create(
+        model="gpt-4o-mini",
+        temperature=0.4,
+        messages=[
+            {"role": "system", "content": "You are a research assistant that synthesizes web findings."},
+            {"role": "user", "content": prompt},
+        ],
+    )
+    return response.choices[0].message.content or ""
+
+
+conn = sqlite3.connect("questions_responses.db")
 c = conn.cursor()
-c.execute('''CREATE TABLE IF NOT EXISTS interactions (question TEXT, response TEXT)''')
+c.execute("CREATE TABLE IF NOT EXISTS interactions (question TEXT, response TEXT)")
 conn.commit()
 
-# Streamlit UI
-st.title("AI Research Assistant 🤖✨")
+st.title("AI Research Assistant")
 
-user_input = st.text_input("Ask a question 📝:")
-if st.button("Submit 🚀"):
+user_input = st.text_input("Ask a question:")
+if st.button("Submit"):
     if user_input:
-        response = agent.run(user_input)
-        st.write("Response 🗣️:", response)
+        with st.spinner("Searching the web and preparing an answer..."):
+            web_context = search_web(user_input, st.secrets["serpapi"]["apikey"])
+            answer = generate_answer(user_input, web_context)
 
-        # Save to DB
-        c.execute("INSERT INTO interactions (question, response) VALUES (?, ?)", (user_input, response))
+        st.write("Response:", answer)
+        c.execute("INSERT INTO interactions (question, response) VALUES (?, ?)", (user_input, answer))
         conn.commit()
 
-# Show history
-st.subheader("Previous Interactions 📚")
+        with st.expander("Web research used"):
+            st.text(web_context)
+
+st.subheader("Previous Interactions")
 for row in c.execute("SELECT * FROM interactions"):
-    st.write(f"Q: {row[0]} ❓")
-    st.write(f"A: {row[1]} 💡")
+    st.write(f"Q: {row[0]}")
+    st.write(f"A: {row[1]}")
