@@ -2,7 +2,7 @@ import os
 import toml
 import sqlite3
 import streamlit as st
-from langchain_community.llms import OpenAI
+from langchain_openai import OpenAI
 from langchain.agents import initialize_agent, Tool
 from langchain.memory import ConversationBufferMemory
 from langchain_community.utilities import SerpAPIWrapper
